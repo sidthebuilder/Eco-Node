@@ -1,0 +1,414 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AETHER | Carbon-Cost Arbitrage Engine</title>
+
+    <!-- Scripts -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+    <!-- Tailwind config for theme -->
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        background: '#09090b', // Deep zinc
+                        panel: '#121214',      // Solid dark for panels
+                        panelBorder: '#27272a',// Subtle border
+                        accent: '#e4e4e7',     // Clean white/gray accent instead of neon
+                        accentHover: '#ffffff',
+                        danger: '#ef4444',
+                        warning: '#f59e0b',
+                        textPrimary: '#f4f4f5',
+                        textSecondary: '#a1a1aa'
+                    },
+                    fontFamily: {
+                        sans: ['Inter', 'sans-serif'],
+                    }
+                }
+            }
+        }
+    </script>
+
+    <!-- Custom CSS -->
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+
+        body {
+            background-color: #09090b;
+            color: #f4f4f5;
+            font-family: 'Inter', sans-serif;
+            min-height: 100vh;
+        }
+
+        .clean-panel {
+            background: var(--tw-colors-panel);
+            border: 1px solid var(--tw-colors-panelBorder);
+            border-radius: 0.75rem;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+        }
+
+        .stat-card {
+            transition: border-color 0.2s ease;
+        }
+
+        .stat-card:hover {
+            border-color: #3f3f46;
+        }
+
+        /* Custom Scrollbar */
+        ::-webkit-scrollbar {
+            width: 6px;
+            height: 6px;
+        }
+
+        ::-webkit-scrollbar-track {
+            background: transparent;
+        }
+
+        ::-webkit-scrollbar-thumb {
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 3px;
+        }
+
+        ::-webkit-scrollbar-thumb:hover {
+            background: rgba(255, 255, 255, 0.2);
+        }
+
+        /* Input styling */
+        input[type="text"],
+        input[type="number"],
+        input[type="range"] {
+            background: #18181b;
+            border: 1px solid #27272a;
+            color: white;
+            transition: all 0.2s;
+        }
+
+        input[type="text"]:focus,
+        input[type="number"]:focus {
+            outline: none;
+            border-color: #a1a1aa;
+        }
+
+        /* Range slider styling */
+        input[type=range] {
+            -webkit-appearance: none;
+            width: 100%;
+            background: transparent;
+        }
+
+        input[type=range]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            height: 16px;
+            width: 16px;
+            border-radius: 50%;
+            background: #ffffff;
+            cursor: pointer;
+            margin-top: -6px;
+        }
+
+        input[type=range]::-webkit-slider-runnable-track {
+            width: 100%;
+            height: 4px;
+            cursor: pointer;
+            background: #27272a;
+            border-radius: 2px;
+        }
+
+        /* Globe Canvas */
+        #globe-container {
+            width: 100%;
+            height: 400px;
+            position: relative;
+            cursor: grab;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 1rem;
+            overflow: hidden;
+        }
+
+        #globe-container:active {
+            cursor: grabbing;
+        }
+    </style>
+</head>
+
+<body class="p-4 md:p-6 lg:p-8">
+
+    <div class="max-w-[1600px] mx-auto space-y-6">
+
+        <!-- Header -->
+        <header class="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-8">
+            <div class="flex items-center gap-3">
+                <div class="w-8 h-8 rounded bg-white text-black flex items-center justify-center">
+                    <i data-lucide="layers" class="w-5 h-5"></i>
+                </div>
+                <div>
+                    <h1 class="text-xl font-semibold tracking-tight text-white flex items-center gap-2">
+                        Aether
+                        <span
+                            class="text-[10px] font-medium px-1.5 py-0.5 rounded bg-zinc-800 text-zinc-300 border border-zinc-700">LIVE</span>
+                    </h1>
+                    <p class="text-[13px] text-textSecondary">Arbitrage Engine</p>
+                </div>
+            </div>
+
+            <div class="flex items-center gap-4 text-sm">
+                <div class="flex items-center gap-2 text-textSecondary px-4 py-2 rounded-lg glass-panel">
+                    <div class="w-2 h-2 rounded-full bg-accent animate-pulse"></div>
+                    API Connected
+                </div>
+                <div id="last-updated" class="text-xs text-textSecondary hidden md:block">
+                    Updated: --:--:--
+                </div>
+            </div>
+        </header>
+
+        <!-- KPI Grid -->
+        <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
+
+            <div class="clean-panel stat-card p-5 group">
+                <div class="flex justify-between items-start mb-2">
+                    <span class="text-sm font-medium text-textSecondary uppercase tracking-wider">Cost Saved</span>
+                    <i data-lucide="dollar-sign"
+                        class="text-accent/70 w-4 h-4 group-hover:text-accent transition-colors"></i>
+                </div>
+                <div class="text-3xl font-bold text-white mb-1">
+                    $<span id="kpi-savings">0.00</span>
+                </div>
+                <div class="text-xs text-textSecondary flex items-center gap-1">
+                    <i data-lucide="trending-up" class="w-3 h-3 text-accent"></i>
+                    vs On-Demand Baseline
+                </div>
+            </div>
+
+            <div class="clean-panel stat-card p-5 group">
+                <div class="flex justify-between items-start mb-2">
+                    <span class="text-sm font-medium text-textSecondary uppercase tracking-wider">CO₂ Avoided</span>
+                    <i data-lucide="leaf" class="text-accent/70 w-4 h-4 group-hover:text-accent transition-colors"></i>
+                </div>
+                <div class="text-3xl font-bold text-white mb-1">
+                    <span id="kpi-carbon">0.00</span> <span class="text-lg text-textSecondary">kg</span>
+                </div>
+                <div class="text-xs text-textSecondary flex items-center gap-1">
+                    <i data-lucide="trending-down" class="w-3 h-3 text-accent"></i>
+                    vs Worst-Region Baseline
+                </div>
+            </div>
+
+            <div class="clean-panel stat-card p-5 group">
+                <div class="flex justify-between items-start mb-2">
+                    <span class="text-sm font-medium text-textSecondary uppercase tracking-wider">Active Jobs</span>
+                    <i data-lucide="server"
+                        class="text-accent/70 w-4 h-4 group-hover:text-accent transition-colors"></i>
+                </div>
+                <div class="text-3xl font-bold text-white mb-1" id="kpi-jobs">0</div>
+                <div class="text-xs text-textSecondary">Running & Migrating</div>
+            </div>
+
+            <div class="clean-panel stat-card p-5 group">
+                <div class="flex justify-between items-start mb-2">
+                    <span class="text-sm font-medium text-textSecondary uppercase tracking-wider">Migrations</span>
+                    <i data-lucide="rocket"
+                        class="text-accent/70 w-4 h-4 group-hover:text-accent transition-colors"></i>
+                </div>
+                <div class="text-3xl font-bold text-white mb-1" id="kpi-migrations">0</div>
+                <div class="text-xs text-textSecondary">Optimizer interventions</div>
+            </div>
+
+            <div class="glass-panel stat-card p-5 group col-span-2 md:col-span-1">
+                <div class="flex justify-between items-start mb-2">
+                    <span class="text-sm font-medium text-textSecondary uppercase tracking-wider">Nodes Monitored</span>
+                    <i data-lucide="globe" class="text-accent/70 w-4 h-4 group-hover:text-accent transition-colors"></i>
+                </div>
+                <div class="text-3xl font-bold text-white mb-1" id="kpi-regions">0</div>
+                <div class="text-xs text-textSecondary">Global Cloud Regions</div>
+            </div>
+
+        </div>
+
+        <!-- Main Middle Section: Globe + Form + Forecast -->
+        <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
+
+            <!-- Left col: Submit Job Form (3 cols) -->
+            <div class="clean-panel p-6 lg:col-span-3 h-[400px] flex flex-col">
+                <h3 class="text-lg font-semibold text-white mb-4 flex items-center gap-2">
+                    <i data-lucide="plus-circle" class="w-4 h-4 text-accent"></i>
+                    Deploy Job
+                </h3>
+
+                <form id="job-form" class="space-y-4 flex-grow overflow-y-auto pr-2">
+                    <div>
+                        <label class="block text-xs font-medium text-textSecondary mb-1">Job Name</label>
+                        <input type="text" id="job-name" value="llama3-finetune"
+                            class="w-full px-3 py-2 rounded-lg text-sm bg-black/20 focus:bg-black/40">
+                    </div>
+
+                    <div class="grid grid-cols-2 gap-3">
+                        <div>
+                            <label class="block text-xs font-medium text-textSecondary mb-1">GPUs</label>
+                            <input type="number" id="job-gpus" value="8" min="1" max="128"
+                                class="w-full px-3 py-2 rounded-lg text-sm bg-black/20 focus:bg-black/40">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-medium text-textSecondary mb-1">Budget ($)</label>
+                            <input type="number" id="job-budget" value="200" min="1"
+                                class="w-full px-3 py-2 rounded-lg text-sm bg-black/20 focus:bg-black/40">
+                        </div>
+                    </div>
+
+                    <div class="grid grid-cols-2 gap-3">
+                        <div>
+                            <label class="block text-xs font-medium text-textSecondary mb-1">Duration (h)</label>
+                            <input type="number" id="job-duration" value="4" min="0.5" step="0.5"
+                                class="w-full px-3 py-2 rounded-lg text-sm bg-black/20 focus:bg-black/40">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-medium text-textSecondary mb-1">Deadline (h)</label>
+                            <input type="number" id="job-deadline" value="24" min="1"
+                                class="w-full px-3 py-2 rounded-lg text-sm bg-black/20 focus:bg-black/40">
+                        </div>
+                    </div>
+
+                    <div class="pt-2">
+                        <div class="flex justify-between mb-1">
+                            <label class="text-xs font-medium text-textSecondary">Optimizer Alpha (Cost Weight)</label>
+                            <span class="text-xs text-accent" id="alpha-val">0.60</span>
+                        </div>
+                        <input type="range" id="job-alpha" min="0" max="1" step="0.05" value="0.6">
+                        <div class="flex justify-between mt-1">
+                            <span class="text-[10px] text-textSecondary">Carbon Beta: <span
+                                    id="beta-val">0.40</span></span>
+                        </div>
+                    </div>
+
+                    <div class="pt-4 mt-auto">
+                        <button type="submit"
+                            class="w-full bg-white hover:bg-zinc-200 text-black font-medium rounded-lg text-sm px-5 py-2 transition-colors flex justify-center items-center gap-2">
+                            Deploy Worker
+                        </button>
+                        <div id="form-msg"
+                            class="text-xs text-center mt-2 opacity-0 transition-opacity text-textSecondary">Job
+                            scheduled</div>
+                    </div>
+                </form>
+            </div>
+
+            <!-- Middle col: 3D Globe (6 cols) -->
+            <div class="clean-panel p-6 lg:col-span-5 h-[400px] flex flex-col relative">
+                <div class="flex justify-between items-center mb-0 absolute top-6 left-6 right-6 z-10">
+                    <h3 class="text-lg font-semibold text-white flex items-center gap-2">
+                        <i data-lucide="map" class="w-4 h-4 text-accent"></i>
+                        Global View
+                    </h3>
+
+                    <!-- Region legend -->
+                    <div class="flex gap-4 text-[11px] text-textSecondary">
+                        <div class="flex items-center gap-1.5"><span class="w-2 h-2 rounded-full bg-green-500"></span>
+                            Clean</div>
+                        <div class="flex items-center gap-1.5"><span class="w-2 h-2 rounded-full bg-yellow-500"></span>
+                            Avg</div>
+                        <div class="flex items-center gap-1.5"><span class="w-2 h-2 rounded-full bg-red-500"></span>
+                            Dirty</div>
+                    </div>
+                </div>
+
+                <div id="globe-container" class="flex-grow mt-2 mask-radial">
+                    <canvas id="cobe" style="width: 100%; height: 100%; contain: layout paint size;"></canvas>
+                </div>
+            </div>
+
+            <!-- Right col: Chart.js Forecast (3 cols) -->
+            <div class="clean-panel p-6 lg:col-span-4 h-[400px] flex flex-col">
+                <div class="flex justify-between items-center mb-4">
+                    <h3 class="text-lg font-semibold text-white flex items-center gap-2">
+                        <i data-lucide="bar-chart-2" class="w-4 h-4 text-accent"></i>
+                        24h Forecast
+                    </h3>
+                    <select id="region-select"
+                        class="bg-black/30 border border-white/10 text-white text-xs rounded-md px-2 py-1 outline-none focus:border-accent">
+                        <option value="">Loading...</option>
+                    </select>
+                </div>
+                <div class="flex-grow relative h-full w-full">
+                    <canvas id="forecast-chart"></canvas>
+                </div>
+            </div>
+        </div>
+
+        <!-- Bottom row: Jobs Table + Decisions -->
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+
+            <!-- Active Jobs -->
+            <div class="clean-panel p-6 overflow-hidden flex flex-col h-[300px]">
+                <h3 class="text-lg font-semibold text-white mb-4 flex items-center gap-2">
+                    <i data-lucide="activity" class="w-4 h-4 text-accent"></i>
+                    Active Workloads
+                </h3>
+                <div class="overflow-auto flex-grow rounded-lg border border-white/5 bg-black/20">
+                    <table class="w-full text-sm text-left text-textSecondary">
+                        <thead class="text-xs text-textSecondary uppercase bg-black/40 border-b border-white/5">
+                            <tr>
+                                <th scope="col" class="px-4 py-3 font-medium">Job</th>
+                                <th scope="col" class="px-4 py-3 font-medium">Status</th>
+                                <th scope="col" class="px-4 py-3 font-medium">Region</th>
+                                <th scope="col" class="px-4 py-3 font-medium text-right">Savings</th>
+                            </tr>
+                        </thead>
+                        <tbody id="jobs-tbody">
+                            <!-- Populated by JS -->
+                            <tr>
+                                <td colspan="4" class="px-4 py-8 text-center text-xs">No active jobs</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- Optimization Decisions -->
+            <div class="clean-panel p-6 overflow-hidden flex flex-col h-[300px]">
+                <h3 class="text-lg font-semibold text-white mb-4 flex items-center gap-2">
+                    <i data-lucide="history" class="w-4 h-4 text-accent"></i>
+                    Recent Optimizer Decisions
+                </h3>
+                <div class="overflow-auto flex-grow rounded-lg border border-white/5 bg-black/20">
+                    <table class="w-full text-sm text-left text-textSecondary">
+                        <thead class="text-xs text-textSecondary uppercase bg-black/40 border-b border-white/5">
+                            <tr>
+                                <th scope="col" class="px-4 py-3 font-medium">Time (UTC)</th>
+                                <th scope="col" class="px-4 py-3 font-medium">Action</th>
+                                <th scope="col" class="px-4 py-3 font-medium">Target Region</th>
+                                <th scope="col" class="px-4 py-3 font-medium text-right">Benefit</th>
+                            </tr>
+                        </thead>
+                        <tbody id="decisions-tbody">
+                            <!-- Populated by JS -->
+                            <tr>
+                                <td colspan="4" class="px-4 py-8 text-center text-xs">No recent decisions</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+        </div>
+    </div>
+
+    <!-- Init icons -->
+    <script>
+        lucide.createIcons();
+    </script>
+
+    <!-- Application Logic -->
+    <script type="module" src="app.js"></script>
+</body>
+
+</html>

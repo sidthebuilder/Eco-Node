@@ -1,0 +1,36 @@
+version: "3.9"
+
+services:
+  aether-api:
+    build: .
+    container_name: aether-api
+    command: uvicorn aether.api.main:app --host 0.0.0.0 --port 8000
+    ports:
+      - "8000:8000"
+    env_file: .env
+    volumes:
+      - checkpoints:/app/checkpoints
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
+  aether-dashboard:
+    build: .
+    container_name: aether-dashboard
+    command: streamlit run dashboard/app.py --server.port 8501 --server.address 0.0.0.0 --server.headless true
+    ports:
+      - "8501:8501"
+    env_file: .env
+    environment:
+      - API_BASE=http://aether-api:8000
+    depends_on:
+      aether-api:
+        condition: service_healthy
+    restart: unless-stopped
+
+volumes:
+  checkpoints:
+    driver: local
